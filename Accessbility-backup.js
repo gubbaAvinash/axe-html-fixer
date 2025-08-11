@@ -1,3 +1,8 @@
+//  The below commented code is for a script that processes an HTML file and a JSON report from Axe accessibility testing.
+//  It identifies accessibility issues based on the report and attempts to fix them in the HTML file.
+//  The script uses Cheerio for parsing and manipulating the HTML content, and it maps custom tags to standard HTML tags.
+//  The fixed HTML is saved to a new file, and any elements that could not be found are logged.
+
 const fs = require('fs');
 const cheerio = require('cheerio');
 const path = require('path');
@@ -28,7 +33,6 @@ const wmMap = {
 // Load HTML preserving custom tags
 const $ = cheerio.load(htmlContent, { xmlMode: false, decodeEntities: false });
 
-let changesRequired = [];
 let notFound = [];
 
 // Utility: extract name="..." from source
@@ -51,13 +55,18 @@ axeReport.allIssues.forEach(issue => {
 
     // Try matching the tag from HTML directly and its wm-mapped equivalent
     let selectorsToTry = [];
+
+    // Standard tag selector
     selectorsToTry.push(`${tagName}[name="${nameAttr}"]`);
+
+    // If tag is in wmMap values, try the wm-* key
     for (const [wmTag, stdTag] of Object.entries(wmMap)) {
         if (stdTag === tagName) {
             selectorsToTry.push(`${wmTag}[name="${nameAttr}"]`);
         }
     }
 
+    // Check for element in HTML
     let foundElement = null;
     for (const sel of selectorsToTry) {
         if ($(sel).length) {
@@ -67,39 +76,23 @@ axeReport.allIssues.forEach(issue => {
     }
 
     if (foundElement) {
-        const oldSnippet = $.html(foundElement);
-        let updatedElement = foundElement.clone();
-
+        // Apply fixes based on ruleId
         if (issue.ruleId === 'button-name') {
-            if (!updatedElement.attr('aria-label')) {
-                updatedElement.attr('aria-label', nameAttr);
+            if (!foundElement.attr('arialabel')) {
+                foundElement.attr('arialabel', nameAttr);
             }
         } else if (issue.ruleId === 'link-in-text-block') {
-            const currentStyle = updatedElement.attr('style') || '';
+            const currentStyle = foundElement.attr('style') || '';
             if (!/text-decoration/i.test(currentStyle)) {
-                updatedElement.attr('style', currentStyle + ';text-decoration:underline;');
+                foundElement.attr('style', currentStyle + ';text-decoration:underline;');
             }
         } else if (issue.ruleId === 'meta-viewport') {
             $('meta[name="viewport"]').attr('content', 'width=device-width, initial-scale=1.0');
         }
-
-        const newSnippet = $.html(updatedElement);
-
-        changesRequired.push({
-            // fileName: path.basename(htmlPath),
-            // ruleId: issue.ruleId,
-            name: nameAttr,
-            // tag: tagName,
-            description: issue.description,
-            oldSnippet,
-            newSnippet
-            // originalSourceFromAxe: issue.source
-        });
     } else {
         notFound.push({
-            // fileName: path.basename(htmlPath),
             name: nameAttr,
-            // tag: tagName,
+            tag: tagName,
             mappedTag: Object.keys(wmMap).find(k => wmMap[k] === tagName) || null,
             ruleId: issue.ruleId,
             description: issue.description
@@ -107,18 +100,10 @@ axeReport.allIssues.forEach(issue => {
     }
 });
 
-// Final JSON response
-const outputJson = {
-    fileScanned: path.basename(htmlPath),
-    changesRequired,
-    notFound
-};
+// Output new HTML file
+const fixedPath = path.join(path.dirname(htmlPath), path.basename(htmlPath, '.html') + '_fixed.html');
+fs.writeFileSync(fixedPath, $.html(), 'utf8');
 
-console.log(JSON.stringify(outputJson, null, 2));
-
-// TO write the json to some file, uncomment the below lines
-
-// const outputPath = path.join(path.dirname(htmlPath), path.basename(htmlPath, '.html') + '_changes.json');
-// fs.writeFileSync(outputPath, JSON.stringify(outputJson, null, 2), 'utf8');
-
-// console.log(`Changes report saved to: ${outputPath}`);
+// Print not found elements
+console.log('Elements not found in HTML:', JSON.stringify(notFound, null, 2));
+console.log('Fixed HTML saved to:', fixedPath);
