@@ -1,12 +1,14 @@
 {
-  "name": "axe-html-fixer",
+  "name": "axe-html-fixer-mcp",
   "version": "1.0.0",
-  "description": "Fix accessibility issues in HTML files based on Axe JSON report",
-  "main": "fixAccessibility.js",
+  "description": "MCP server for Axe-based HTML accessibility fixes",
+  "main": "index.js",
+  "type": "module",
   "scripts": {
-    "start": "node fixAccessibility.js"
+    "start": "node index.js"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.2",
     "cheerio": "^1.0.0-rc.12"
   }
 }
