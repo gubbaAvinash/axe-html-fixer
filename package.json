@@ -1,0 +1,12 @@
+{
+  "name": "axe-html-fixer",
+  "version": "1.0.0",
+  "description": "Fix accessibility issues in HTML files based on Axe JSON report",
+  "main": "fixAccessibility.js",
+  "scripts": {
+    "start": "node fixAccessibility.js"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.12"
+  }
+}
