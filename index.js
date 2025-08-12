@@ -5,17 +5,17 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { runAccessibilityCheck } from "./fixer.js";
 
+// Hardcoded file paths
+const HARDCODED_HTML = "/Users/avinashg/Desktop/WM/Projects/FinanceAI/src/main/webapp/pages/Dashboard/Dashboard.html";
+const HARDCODED_JSON = "/Users/avinashg/Desktop/WM/Projects/report1.json";
+
 const toolDefinition = {
     name: "check_accessibility",
-    description: "Check HTML against Axe accessibility JSON and return suggested changes (file path input)",
+    description: "Check the hardcoded Dashboard.html against the hardcoded Axe report",
     inputSchema: {
         type: "object",
-        properties: {
-            htmlPath: { type: "string", description: "Path to the HTML file" },
-            jsonPath: { type: "string", description: "Path to the Axe JSON file" },
-            fileName: { type: "string", description: "File name for reporting", default: "input.html" }
-        },
-        required: ["htmlPath", "jsonPath"]
+        properties: {},
+        required: []
     }
 };
 
@@ -33,30 +33,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (request.params.name === "check_accessibility") {
         try {
-            const { htmlPath, jsonPath, fileName } = request.params.arguments;
-            //  const {  fileName } = request.params.arguments;
-
-            const resolvedHtmlPath = path.resolve(htmlPath);
-            const resolvedJsonPath = path.resolve(jsonPath);
-
-            // Check if HTML file exists
-            if (!fs.existsSync(resolvedHtmlPath)) {
-                return { content: [{ type: "text", text: `Error: HTML file not found at ${resolvedHtmlPath}` }] };
+            if (!fs.existsSync(HARDCODED_HTML)) {
+                return { content: [{ type: "text", text: `Error: HTML file not found at ${HARDCODED_HTML}` }] };
+            }
+            if (!fs.existsSync(HARDCODED_JSON)) {
+                return { content: [{ type: "text", text: `Error: JSON file not found at ${HARDCODED_JSON}` }] };
             }
 
-            // Check if JSON file exists
-            if (!fs.existsSync(resolvedJsonPath)) {
-                return { content: [{ type: "text", text: `Error: JSON file not found at ${resolvedJsonPath}` }] };
-            }
+            const htmlContent = fs.readFileSync(path.resolve(HARDCODED_HTML), "utf8");
+            const axeJsonContent = fs.readFileSync(path.resolve(HARDCODED_JSON), "utf8");
 
-            const htmlContent = fs.readFileSync(resolvedHtmlPath, "utf8");
-            const axeJsonContent = fs.readFileSync(resolvedJsonPath, "utf8");
-            // const htmlContent = fs.readFileSync("/Users/avinashg/Desktop/WM/Projects/FinanceAI/src/main/webapp/pages/Dashboard/Dashboard.html", "utf8");
-            // const axeJsonContent = fs.readFileSync("/Users/avinashg/Desktop/WM/Projects/report1.json", "utf8");
+            const result = runAccessibilityCheck(htmlContent, axeJsonContent, path.basename(HARDCODED_HTML));
 
-            const result = runAccessibilityCheck(htmlContent, axeJsonContent, fileName || path.basename(resolvedHtmlPath));
-            // const result = runAccessibilityCheck( "input123.json");
-            return { content: [{ type: "json", value: result }] };
+            // ✅ Return as MCP-compliant text
+            return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
 
         } catch (err) {
             return { content: [{ type: "text", text: `Error: ${err.message}` }] };
