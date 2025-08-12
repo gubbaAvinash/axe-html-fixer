@@ -21,7 +21,7 @@ function extractTagName(source) {
     return match ? match[1].toLowerCase() : null;
 }
 
-export function runAccessibilityCheck(htmlContent="/Users/avinashg/Desktop/WM/Projects/FinanceAI/src/main/webapp/pages/Dashboard/Dashboard.html", axeJsonContent="/Users/avinashg/Desktop/WM/Projects/report1.json", fileName = "input.html") {
+export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "input.html") {
     const $ = load(htmlContent, { xmlMode: false, decodeEntities: false });
     const axeReport = JSON.parse(axeJsonContent);
 
@@ -54,6 +54,7 @@ export function runAccessibilityCheck(htmlContent="/Users/avinashg/Desktop/WM/Pr
             const oldSnippet = $.html(foundElement);
             let updatedElement = foundElement.clone();
 
+            // Apply fixes
             if (issue.ruleId === 'button-name') {
                 if (!updatedElement.attr('aria-label')) {
                     updatedElement.attr('aria-label', nameAttr);
@@ -66,6 +67,9 @@ export function runAccessibilityCheck(htmlContent="/Users/avinashg/Desktop/WM/Pr
             } else if (issue.ruleId === 'meta-viewport') {
                 $('meta[name="viewport"]').attr('content', 'width=device-width, initial-scale=1.0');
             }
+
+            // Replace in DOM
+            foundElement.replaceWith(updatedElement);
 
             const newSnippet = $.html(updatedElement);
 
@@ -91,9 +95,13 @@ export function runAccessibilityCheck(htmlContent="/Users/avinashg/Desktop/WM/Pr
         }
     });
 
+    // Return final updated HTML as a single string
+    const updatedContent = $.html();
+
     return {
         fileScanned: fileName,
-        changesRequired,
-        notFound
+        updatedContent
+        // changesRequired,
+        // notFound,
     };
 }

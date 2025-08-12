@@ -11,7 +11,7 @@ const HARDCODED_JSON = "/Users/avinashg/Desktop/WM/Projects/report1.json";
 
 const toolDefinition = {
     name: "check_accessibility",
-    description: "Check the hardcoded Dashboard.html against the hardcoded Axe report",
+    description: "Check the hardcoded Dashboard.html against the hardcoded Axe report and return full updated HTML",
     inputSchema: {
         type: "object",
         properties: {},
@@ -45,8 +45,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
             const result = runAccessibilityCheck(htmlContent, axeJsonContent, path.basename(HARDCODED_HTML));
 
-            // ✅ Return as MCP-compliant text
-            return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+            // Return updated HTML file along with metadata
+            return {
+                content: [
+                    {
+                        type: "text", text: JSON.stringify({
+                            fileName: HARDCODED_HTML,
+                            updatedContent: result.updatedContent,
+                            issues: result.changesRequired,
+                            notFound: result.notFound
+                        }, null, 2)
+                    }
+                ]
+            };
 
         } catch (err) {
             return { content: [{ type: "text", text: `Error: ${err.message}` }] };
