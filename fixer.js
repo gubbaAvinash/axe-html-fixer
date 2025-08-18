@@ -9,7 +9,7 @@ const wmMap = {
     'wm-link': 'a',
     'wm-icon': 'img',
     'wm-container': 'div',
-    'wm-anchor':'a'
+    'wm-anchor': 'a'
 };
 
 function extractNameAttr(source) {
@@ -68,7 +68,7 @@ export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "i
             } else if (issue.ruleId === 'meta-viewport') {
                 $('meta[name="viewport"]').attr('content', 'width=device-width, initial-scale=1.0');
             }
-             else if (issue.ruleId === 'color-contrast') {
+            else if (issue.ruleId === 'color-contrast') {
                 // Simple fix: increase contrast by forcing black text on white bg if contrast issue detected
                 const currentStyle = updatedElement.attr('style') || '';
                 if (!/color:/i.test(currentStyle)) {
@@ -89,22 +89,22 @@ export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "i
                 if (!updatedElement.attr('aria-label') && !updatedElement.attr('title')) {
                     updatedElement.attr('aria-label', nameAttr || 'Select an option');
                 }
-// Replace in DOM
-            foundElement.replaceWith(updatedElement);
+                // Replace in DOM
+                foundElement.replaceWith(updatedElement);
 
-            const newSnippet = $.html(updatedElement);
+                const newSnippet = $.html(updatedElement);
 
-            changesRequired.push({
-                fileName,
-                ruleId: issue.ruleId,
-                name: nameAttr,
-                tag: tagName,
-                description: issue.description,
-                oldSnippet,
-                newSnippet,
-                originalSourceFromAxe: issue.source
-            });
-        }
+                changesRequired.push({
+                    fileName,
+                    ruleId: issue.ruleId,
+                    name: nameAttr,
+                    tag: tagName,
+                    description: issue.description,
+                    oldSnippet,
+                    newSnippet,
+                    originalSourceFromAxe: issue.source
+                });
+            }
         } else {
             notFound.push({
                 fileName,
@@ -117,8 +117,9 @@ export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "i
         }
     });
 
-    // Return final updated HTML as a single string
-    const updatedContent = $.html();
+    // Return final updated HTML as a single string without head and body tags.
+    const updatedContent = $("body").length ? $("body").html() : $.root().html();
+
 
     return {
         fileScanned: fileName,
