@@ -9,7 +9,7 @@ const wmMap = {
     'wm-link': 'a',
     'wm-icon': 'img',
     'wm-container': 'div',
-    'wm-anchor':'a'
+    'wm-anchor': 'a'
 };
 
 function extractNameAttr(source) {
@@ -55,41 +55,62 @@ export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "i
             const oldSnippet = $.html(foundElement);
             let updatedElement = foundElement.clone();
 
-            // Apply fixes
-            if (issue.ruleId === 'button-name') {
-                if (!updatedElement.attr('aria-label')) {
-                    updatedElement.attr('aria-label', nameAttr);
-                }
-            } else if (issue.ruleId === 'link-in-text-block') {
-                const currentStyle = updatedElement.attr('style') || '';
-                if (!/text-decoration/i.test(currentStyle)) {
-                    updatedElement.attr('style', currentStyle + ';text-decoration:underline;');
-                }
-            } else if (issue.ruleId === 'meta-viewport') {
-                $('meta[name="viewport"]').attr('content', 'width=device-width, initial-scale=1.0');
+            // 🔄 Replaced if/else with switch
+            switch (issue.ruleId) {
+                case 'button-name':
+                    if (!updatedElement.attr('arialabel')) {
+                        updatedElement.attr('arialabel', nameAttr);
+                    }
+                    break;
+
+                case 'link-in-text-block':
+                    {
+                        const currentStyle = updatedElement.attr('style') || '';
+                        if (!/text-decoration/i.test(currentStyle)) {
+                            updatedElement.attr('style', currentStyle + ';text-decoration:underline;');
+                        }
+                    }
+                    break;
+
+                // case 'meta-viewport':
+                //     $('meta[name="viewport"]').attr('content', 'width=device-width, initial-scale=1.0');
+                //     break;
+
+                case 'color-contrast':
+                    {
+                        const currentStyle = updatedElement.attr('style') || '';
+                        if (!/color:/i.test(currentStyle)) {
+                            updatedElement.attr('style', currentStyle + ';color:#000000;');
+                        }
+                        if (!/background-color:/i.test(currentStyle)) {
+                            updatedElement.attr('style', updatedElement.attr('style') + ';background-color:#FFFFFF;');
+                        }
+                    }
+                    break;
+
+                case 'link-name':
+                    if (!updatedElement.attr('arialabel')) {
+                        updatedElement.attr('arialabel', nameAttr || 'Link');
+                    }
+                    break;
+
+                case 'role-img-alt':
+                    if (updatedElement.is('img') && !updatedElement.attr('alt')) {
+                        updatedElement.attr('alt', nameAttr || 'Image');
+                    }
+                    break;
+
+                case 'select-name':
+                    if (!updatedElement.attr('arialabel') && !updatedElement.attr('title')) {
+                        updatedElement.attr('arialabel', nameAttr || 'Select an option');
+                    }
+                    break;
+
+                default:
+                    break;
             }
-             else if (issue.ruleId === 'color-contrast') {
-                // Simple fix: increase contrast by forcing black text on white bg if contrast issue detected
-                const currentStyle = updatedElement.attr('style') || '';
-                if (!/color:/i.test(currentStyle)) {
-                    updatedElement.attr('style', currentStyle + ';color:#000000;');
-                }
-                if (!/background-color:/i.test(currentStyle)) {
-                    updatedElement.attr('style', updatedElement.attr('style') + ';background-color:#FFFFFF;');
-                }
-            } else if (issue.ruleId === 'link-name') {
-                if (!updatedElement.attr('aria-label')) {
-                    updatedElement.attr('aria-label', nameAttr || 'Link');
-                }
-            } else if (issue.ruleId === 'role-img-alt') {
-                if (updatedElement.is('img') && !updatedElement.attr('alt')) {
-                    updatedElement.attr('alt', nameAttr || 'Image');
-                }
-            } else if (issue.ruleId === 'select-name') {
-                if (!updatedElement.attr('aria-label') && !updatedElement.attr('title')) {
-                    updatedElement.attr('aria-label', nameAttr || 'Select an option');
-                }
-// Replace in DOM
+
+            // Replace in DOM
             foundElement.replaceWith(updatedElement);
 
             const newSnippet = $.html(updatedElement);
@@ -104,7 +125,6 @@ export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "i
                 newSnippet,
                 originalSourceFromAxe: issue.source
             });
-        }
         } else {
             notFound.push({
                 fileName,
@@ -117,8 +137,9 @@ export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "i
         }
     });
 
-    // Return final updated HTML as a single string
-    const updatedContent = $.html();
+    // Return final updated HTML as a single string without head and body tags.
+    const updatedContent = $("body").length ? $("body").html() : $.root().html();
+
 
     return {
         fileScanned: fileName,
