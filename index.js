@@ -5,15 +5,17 @@ import { runAccessibilityCheck } from "./fixer.js";
 
 const toolDefinition = {
     name: "check_accessibility",
-    description: "Check an uploaded HTML content against an Axe report JSON content and return updated HTML",
+    description: "Check PageHTML (mandatory) and optionally HeaderHTML, LeftNavHTML, FooterHTML against Axe JSON report. Returns updated HTML with fixes.",
     inputSchema: {
         type: "object",
         properties: {
-            htmlContent: { type: "string", description: "The full HTML file contents" },
-            axeJsonContent: { type: "string", description: "The full Axe JSON file contents" },
-            fileName: { type: "string", description: "Optional: file name of the HTML file", default: "input.html" }
+            pageHTML: { type: "string", description: "Actual Page HTML content (mandatory)" },
+            headerHTML: { type: "string", description: "Header HTML content (optional)" },
+            leftNavHTML: { type: "string", description: "Left navigation HTML content (optional)" },
+            footerHTML: { type: "string", description: "Footer HTML content (optional)" },
+            axeJson: { type: "string", description: "Accessibility JSON report from axe" }
         },
-        required: ["htmlContent", "axeJsonContent"]
+        required: ["pageHTML", "axeJson"]
     }
 };
 
@@ -31,23 +33,48 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (request.params.name === "check_accessibility") {
         try {
-            const { htmlContent, axeJsonContent, fileName } = request.params.arguments;
+            const { pageHTML, headerHTML, leftNavHTML, footerHTML, axeJson } = request.params.arguments;
 
-            const result = runAccessibilityCheck(htmlContent, axeJsonContent, fileName);
+            if (!pageHTML) {
+                return { content: [{ type: "text", text: "Error: pageHTML is required." }] };
+            }
+            if (!axeJson) {
+                return { content: [{ type: "text", text: "Error: axeJson is required." }] };
+            }
+
+            let results = {};
+
+            const filesToCheck = [
+                { label: "PageHTML", content: pageHTML, mandatory: true },
+                { label: "HeaderHTML", content: headerHTML, mandatory: false },
+                { label: "LeftNavHTML", content: leftNavHTML, mandatory: false },
+                { label: "FooterHTML", content: footerHTML, mandatory: false }
+            ];
+
+            for (const { label, content, mandatory } of filesToCheck) {
+                if (content) {
+                    const result = runAccessibilityCheck(content, axeJson, label + ".html");
+                    results[label] = {
+                        updatedContent: result.updatedContent,
+                        issues: result.changesRequired,
+                        notFound: result.notFound
+                    };
+                } else if (mandatory) {
+                    return { content: [{ type: "text", text: `Error: Mandatory HTML (${label}) not provided.` }] };
+                } else {
+                    results[label] = { skipped: true, reason: "Not provided" };
+                }
+            }
 
             return {
                 content: [
                     {
                         type: "text",
-                        text: JSON.stringify({
-                            fileName,
-                            updatedContent: result.updatedContent,
-                            issues: result.changesRequired,
-                            notFound: result.notFound
-                        }, null, 2)
+                        text: JSON.stringify(results, null, 2)
                     }
                 ]
             };
+
         } catch (err) {
             return { content: [{ type: "text", text: `Error: ${err.message}` }] };
         }

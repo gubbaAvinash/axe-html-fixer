@@ -143,8 +143,8 @@ export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "i
 
     return {
         fileScanned: fileName,
-        updatedContent,
-        changesRequired,
-        notFound
+        updatedContent
+        // changesRequired,
+        // notFound
     };
 }
