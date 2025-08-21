@@ -22,12 +22,97 @@ function extractTagName(source) {
     return match ? match[1].toLowerCase() : null;
 }
 
+// --- Helpers ---
+function hexToRgb(hexColor) {
+    let hex = hexColor.replace("#", "");
+    if (hex.length === 3) {
+        hex = hex.split("").map(c => c + c).join("");
+    }
+    const num = parseInt(hex, 16);
+    return [
+        (num >> 16) & 255,
+        (num >> 8) & 255,
+        num & 255
+    ];
+}
+
+function luminance(r, g, b) {
+    const a = [r, g, b].map(v => {
+        v /= 255;
+        return v <= 0.03928
+            ? v / 12.92
+            : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
+}
+
+function contrastRatio(fg, bg) {
+    const [r1, g1, b1] = hexToRgb(fg);
+    const [r2, g2, b2] = hexToRgb(bg);
+    const L1 = luminance(r1, g1, b1);
+    const L2 = luminance(r2, g2, b2);
+    const brightest = Math.max(L1, L2);
+    const darkest = Math.min(L1, L2);
+    return (brightest + 0.05) / (darkest + 0.05);
+}
+
+function rgbToHex(r, g, b) {
+    return (
+        "#" +
+        [r, g, b]
+            .map(x => {
+                const h = x.toString(16);
+                return h.length === 1 ? "0" + h : h;
+            })
+            .join("")
+    );
+}
+
+// --- Adjust until ratio ≥ target ---
+function adjustColorToMeetContrast(fg, bg, target = 4.5) {
+    let [r, g, b] = hexToRgb(fg);
+    let step = 5;
+    let tries = 0;
+
+    // Try brightening first
+    while (contrastRatio(rgbToHex(r, g, b), bg) < target && tries < 100) {
+        r = Math.min(255, r + step);
+        g = Math.min(255, g + step);
+        b = Math.min(255, b + step);
+        tries++;
+    }
+
+    // If still not good, try darkening instead
+    if (contrastRatio(rgbToHex(r, g, b), bg) < target) {
+        [r, g, b] = hexToRgb(fg);
+        tries = 0;
+        while (contrastRatio(rgbToHex(r, g, b), bg) < target && tries < 100) {
+            r = Math.max(0, r - step);
+            g = Math.max(0, g - step);
+            b = Math.max(0, b - step);
+            tries++;
+        }
+    }
+
+    return rgbToHex(r, g, b);
+}
+
+
 export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "input.html") {
     const $ = load(htmlContent, { xmlMode: false, decodeEntities: false });
     const axeReport = JSON.parse(axeJsonContent);
 
     let changesRequired = [];
     let notFound = [];
+
+    // ✅ Final JSON collector for css
+    let finalResult = {
+        jsonrpc: "2.0",
+        id: Date.now(),
+        result: {
+            fixes: {}
+        }
+    };
 
     axeReport.allIssues.forEach(issue => {
         const nameAttr = extractNameAttr(issue.source);
@@ -55,8 +140,46 @@ export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "i
             const oldSnippet = $.html(foundElement);
             let updatedElement = foundElement.clone();
 
-            // 🔄 Replaced if/else with switch
             switch (issue.ruleId) {
+                case 'color-contrast':
+                    const match = issue.summary.match(
+                        /contrast of ([\d.]+).*foreground color: (#[0-9a-fA-F]{6}).*background color: (#[0-9a-fA-F]{6})/
+                    );
+
+                    if (match) {
+                        const ratio = parseFloat(match[1]);
+                        const color = match[2];
+                        const background = match[3];
+
+                        const fixedFg = adjustColorToMeetContrast(color, background, 4.5);
+                        const newRatio = contrastRatio(fixedFg, background).toFixed(2);
+
+                        let classes = "";
+                        if (issue && issue.source) {
+                            const classMatch = issue.source.match(/class="([^"]+)"/);
+                            if (classMatch) {
+                                classes = "." + classMatch[1].trim().split(/\s+/).join(".");
+                            }
+                        }
+
+                        // add to finalResult
+                        finalResult.result.fixes[classes] = {
+                            original: {
+                                ratio,
+                                color,
+                                background,
+                                classes
+                            },
+                            fixed: {
+                                color: fixedFg,
+                                // background,
+                                newRatio
+                            }
+                        };
+                    }
+                    break;
+
+                // --- Other rules remain same ---
                 case 'button-name':
                     if (!updatedElement.attr('arialabel')) {
                         updatedElement.attr('arialabel', nameAttr);
@@ -68,22 +191,6 @@ export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "i
                         const currentStyle = updatedElement.attr('style') || '';
                         if (!/text-decoration/i.test(currentStyle)) {
                             updatedElement.attr('style', currentStyle + ';text-decoration:underline;');
-                        }
-                    }
-                    break;
-
-                // case 'meta-viewport':
-                //     $('meta[name="viewport"]').attr('content', 'width=device-width, initial-scale=1.0');
-                //     break;
-
-                case 'color-contrast':
-                    {
-                        const currentStyle = updatedElement.attr('style') || '';
-                        if (!/color:/i.test(currentStyle)) {
-                            updatedElement.attr('style', currentStyle + ';color:#000000;');
-                        }
-                        if (!/background-color:/i.test(currentStyle)) {
-                            updatedElement.attr('style', updatedElement.attr('style') + ';background-color:#FFFFFF;');
                         }
                     }
                     break;
@@ -110,9 +217,7 @@ export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "i
                     break;
             }
 
-            // Replace in DOM
             foundElement.replaceWith(updatedElement);
-
             const newSnippet = $.html(updatedElement);
 
             changesRequired.push({
@@ -137,14 +242,16 @@ export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "i
         }
     });
 
-    // Return final updated HTML as a single string without head and body tags.
     const updatedContent = $("body").length ? $("body").html() : $.root().html();
 
-
+     // ✅ Pretty print full JSON for CSS
+    console.error(JSON.stringify(finalResult, null, 2));
+   
     return {
         fileScanned: fileName,
-        updatedContent
-        // changesRequired,
-        // notFound
+        updatedContent,
+        fixes: finalResult
+      
     };
 }
+
