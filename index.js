@@ -62,9 +62,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         notFound: result.notFound
                     };
 
-                    // Collect css fixes into aggregate object (keyed by label)
+
+                    // Merge css fixes into aggregate object
                     if (result && result.finalResult && result.finalResult.result && result.finalResult.result.fixes) {
-                        aggregateCssIssues[label] = result.finalResult.result.fixes;
+                        Object.assign(aggregateCssIssues, result.finalResult.result.fixes);
                     }
                 } else if (mandatory) {
                     return { content: [{ type: "text", text: `Error: Mandatory HTML (${label}) not provided.` }] };
@@ -73,8 +74,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 }
             }
 
+            // Convert to CSS string
+            let cssString = "";
+            for (const [selector, styles] of Object.entries(aggregateCssIssues)) {
+                cssString += `${selector} {`;
+                for (const [prop, value] of Object.entries(styles)) {
+                    cssString += ` ${prop}: ${value} !important;`;
+                }
+                cssString += ` }\n`;
+            }
             // Attach the combined cssIssues object at the end of results
-            results.cssIssues = aggregateCssIssues;
+            results.cssIssues = cssString;
 
             return {
                 content: [
