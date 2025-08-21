@@ -3,13 +3,18 @@ import { load } from "cheerio";
 const wmMap = {
     'wm-button': 'button',
     'wm-label': 'p',
-    'wm-input': 'input',
+    'wm-text': 'input',
     'wm-textarea': 'textarea',
     'wm-select': 'select',
     'wm-link': 'a',
     'wm-icon': 'img',
     'wm-container': 'div',
-    'wm-anchor': 'a'
+    'wm-anchor': 'a',
+    'wm-number': 'input',
+    'wm-page': 'div',
+    'wm-content': 'div',
+    'wm-page-content': 'div',
+    'wm-composite': 'div'
 };
 
 function extractNameAttr(source) {
@@ -118,6 +123,33 @@ export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "i
         const nameAttr = extractNameAttr(issue.source);
         const tagName = extractTagName(issue.source);
 
+        // --- Special handling for meta-viewport ---
+        if (issue.ruleId === "meta-viewport") {
+            const viewportMeta = $('meta[name="viewport"]');
+            if (viewportMeta.length) {
+                const oldSnippet = $.html(viewportMeta);
+                let updated = viewportMeta.clone();
+
+                let content = updated.attr("content") || "";
+                content = content.replace(/user-scalable\s*=\s*no/i, "user-scalable=yes");
+                updated.attr("content", content);
+
+                viewportMeta.replaceWith(updated);
+                const newSnippet = $.html(updated);
+
+                changesRequired.push({
+                    fileName,
+                    ruleId: issue.ruleId,
+                    tag: "meta",
+                    description: issue.description,
+                    oldSnippet,
+                    newSnippet,
+                    originalSourceFromAxe: issue.source
+                });
+                return;
+            }
+        }
+
         if (!nameAttr || !tagName) return;
 
         let selectorsToTry = [];
@@ -141,6 +173,34 @@ export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "i
             let updatedElement = foundElement.clone();
 
             switch (issue.ruleId) {
+                case 'label':
+                    {
+                        // Check if element is wm-number (special handling)
+                        if (updatedElement.is('wm-number') || updatedElement.prop("tagName")?.toLowerCase() === "wm-number") {
+                            if (!updatedElement.attr('arialabel') && !updatedElement.attr('aria-label')) {
+                                const fallback = nameAttr || "Number field";
+                                updatedElement.attr('arialabel', fallback);
+                            }
+                        } else {
+                            // Generic input/text/other cases
+                            let aria = updatedElement.attr('arialabel') || updatedElement.attr('aria-label');
+                            if (!aria) {
+                                const fallback =
+                                    nameAttr ||
+                                    updatedElement.attr("placeholder")?.trim() ||
+                                    "Input field";
+                                updatedElement.attr('arialabel', fallback);
+                            }
+
+                            // If placeholder exists but empty, set aria-label
+                            if (updatedElement.attr("placeholder") !== undefined &&
+                                updatedElement.attr("placeholder").trim() === "") {
+                                updatedElement.attr('arialabel', nameAttr || "Input field");
+                            }
+                        }
+                    }
+                    break;
+
                 case 'color-contrast':
                     const match = issue.summary.match(
                         /contrast of ([\d.]+).*foreground color: (#[0-9a-fA-F]{6}).*background color: (#[0-9a-fA-F]{6})/
@@ -171,9 +231,9 @@ export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "i
                             //     classes
                             // },
                             // fixed: {
-                                color: fixedFg,
-                                // background,
-                                // newRatio
+                            color: fixedFg,
+                            // background,
+                            // newRatio
                             // }
                         };
                     }
@@ -244,14 +304,14 @@ export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "i
 
     const updatedContent = $("body").length ? $("body").html() : $.root().html();
 
-     // ✅ Pretty print full JSON for CSS
+    // ✅ Pretty print full JSON for CSS
     console.error(JSON.stringify(finalResult, null, 2));
-   
+
     return {
         fileScanned: fileName,
         updatedContent,
         changesRequired,
-        notFound,    
+        notFound,
         finalResult
     };
 }
