@@ -51,6 +51,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 { label: "FooterHTML", content: footerHTML, mandatory: false }
             ];
 
+            const aggregateCssIssues = {};
+
             for (const { label, content, mandatory } of filesToCheck) {
                 if (content) {
                     const result = runAccessibilityCheck(content, axeJson, label + ".html");
@@ -59,12 +61,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         issues: result.changesRequired,
                         notFound: result.notFound
                     };
+
+                    // Collect css fixes into aggregate object (keyed by label)
+                    if (result && result.finalResult && result.finalResult.result && result.finalResult.result.fixes) {
+                        aggregateCssIssues[label] = result.finalResult.result.fixes;
+                    }
                 } else if (mandatory) {
                     return { content: [{ type: "text", text: `Error: Mandatory HTML (${label}) not provided.` }] };
                 } else {
                     results[label] = { skipped: true, reason: "Not provided" };
                 }
             }
+
+            // Attach the combined cssIssues object at the end of results
+            results.cssIssues = aggregateCssIssues;
 
             return {
                 content: [

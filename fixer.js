@@ -2,7 +2,7 @@ import { load } from "cheerio";
 
 const wmMap = {
     'wm-button': 'button',
-    'wm-label': 'label',
+    'wm-label': 'p',
     'wm-input': 'input',
     'wm-textarea': 'textarea',
     'wm-select': 'select',
@@ -164,17 +164,17 @@ export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "i
 
                         // add to finalResult
                         finalResult.result.fixes[classes] = {
-                            original: {
-                                ratio,
-                                color,
-                                background,
-                                classes
-                            },
-                            fixed: {
+                            // original: {
+                            //     ratio,
+                            //     color,
+                            //     background,
+                            //     classes
+                            // },
+                            // fixed: {
                                 color: fixedFg,
                                 // background,
-                                newRatio
-                            }
+                                // newRatio
+                            // }
                         };
                     }
                     break;
@@ -250,8 +250,9 @@ export function runAccessibilityCheck(htmlContent, axeJsonContent, fileName = "i
     return {
         fileScanned: fileName,
         updatedContent,
-        fixes: finalResult
-      
+        changesRequired,
+        notFound,    
+        finalResult
     };
 }
 
